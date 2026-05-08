@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-def get_time_emb(time_steps, dim):
+def get_time_embedding(time_steps, dim):
     assert dim % 2 == 0, "Time embedding dimension must be even"
     factor = 10000 ** (torch.arange(0, dim // 2, dtype=torch.float32, device=time_steps.device) // (dim // 2))
 
