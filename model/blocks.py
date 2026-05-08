@@ -147,25 +147,25 @@ class UpBlock(nn.Module):
         self.res_inp_conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
         self.up_sample_conv = nn.ConvTranspose2d(out_channels, out_channels, kernel_size=4, stride=2, padding=1) if up_sample else nn.Identity()
         
-        def forward(self, x, out_down, temb):
-            x = self.up_sample_conv(x)
-            x = torch.cat([x, out_down], dim=1)
+    def forward(self, x, out_down, temb):
+        x = self.up_sample_conv(x)
+        x = torch.cat([x, out_down], dim=1)
 
-            out = x
-            #resnet
-            res_inp = out
-            out = self.res_conv_first(out)
-            out = out + self.temb_layer(temb)[:, :, None, None]
-            out = self.res_conv_second(out)
-            out = out + self.res_inp_conv(res_inp)
+        out = x
+        #resnet
+        res_inp = out
+        out = self.res_conv_first(out)
+        out = out + self.temb_layer(temb)[:, :, None, None]
+        out = self.res_conv_second(out)
+        out = out + self.res_inp_conv(res_inp)
 
-            b, c, h, w = out.shape
-            in_attn = out.reshape(b, c, h*w)
-            in_attn = self.attn_norm(in_attn).permute(0, 2, 1)
-            out_attn, _ = self.attn(in_attn, in_attn, in_attn)
-            out_attn = out_attn.permute(0, 2, 1).reshape(b, c, h, w)
-            out = out + out_attn
+        b, c, h, w = out.shape
+        in_attn = out.reshape(b, c, h*w)
+        in_attn = self.attn_norm(in_attn).permute(0, 2, 1)
+        out_attn, _ = self.attn(in_attn, in_attn, in_attn)
+        out_attn = out_attn.permute(0, 2, 1).reshape(b, c, h, w)
+        out = out + out_attn
 
-            return out
-        
+        return out
+    
         
