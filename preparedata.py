@@ -4,7 +4,7 @@ import os
 for split, train in [('train', True), ('test', False)]:
     ds = MNIST(root='./data', train=train, download=True)
 
-    base_folder = f'./data/MNIST/{split}/images'
+    base_folder = f'./data/mnist/{split}/images'
 
     for label in range(10):
         os.makedirs(f'{base_folder}/{label}', exist_ok=True)
