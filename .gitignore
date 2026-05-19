@@ -1,0 +1,23 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local datasets
+data/
+
+# Training outputs and checkpoints
+mnist/
+*.pth
+*.pt
+*.ckpt
+*.tmp
+
+# Logs
+*.log
+runs/

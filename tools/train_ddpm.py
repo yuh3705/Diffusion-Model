@@ -1,16 +1,20 @@
 import os
+import sys
+from pathlib import Path
 import yaml
 import numpy as np
 import torch
 import torch.nn as nn
 from torch.optim import Adam
 from torch.utils.data import DataLoader
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+
 from dataset.mnist_dataset import MNISTDataset
 from model.unet import UNet
 from scheduler.scheduler import Scheduler
 from tqdm import tqdm
 import argparse
-
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -43,9 +47,10 @@ def train(args):
     if not os.path.exists(train_config['task_name']):
         os.makedirs(train_config['task_name'])
 
-    if os.path.exists(os.path.join(train_config['task_name'], train_config['ckpt_name'])):
-        print(f"Loading model from {os.path.join(train_config['task_name'], train_config['ckpt_name'])}...")
-        model.load_state_dict(torch.load(os.path.join(train_config['task_name'], train_config['ckpt_name']), map_location=device))
+    ckpt_path = os.path.join(train_config['task_name'], train_config['ckpt_name'])
+    if os.path.exists(ckpt_path):
+        print(f"Loading model from {ckpt_path}...")
+        model.load_state_dict(torch.load(ckpt_path, map_location=device))
 
     num_epochs = train_config['num_epochs']
     optimizer = Adam(model.parameters(), lr=train_config['lr'])
@@ -53,7 +58,8 @@ def train(args):
 
     for epoch_idx in range(num_epochs):
         losses = []
-        for im in tqdm(mnist_loader):
+        progress_bar = tqdm(mnist_loader, desc=f"Epoch {epoch_idx + 1}/{num_epochs}")
+        for im in progress_bar:
             optimizer.zero_grad()
             im = im.float().to(device)
 
@@ -69,9 +75,12 @@ def train(args):
             loss.backward()
             optimizer.step()
 
-            print(f"Epoch {epoch_idx+1}/{num_epochs}, Loss: {np.mean(losses):.4f}")
+            progress_bar.set_postfix(loss=f"{np.mean(losses):.4f}")
 
-            torch.save(model.state_dict(), os.path.join(train_config['task_name'], train_config['ckpt_name']))
+        tmp_ckpt_path = f"{ckpt_path}.tmp"
+        torch.save(model.state_dict(), tmp_ckpt_path)
+        os.replace(tmp_ckpt_path, ckpt_path)
+        print(f"Saved checkpoint to {ckpt_path}")
 
 
 if __name__ == "__main__":

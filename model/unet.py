@@ -43,7 +43,8 @@ class UNet(nn.Module):
         for i in range(len(self.down_channels) - 1):
             self.downs.append(DownBlock(self.down_channels[i], self.down_channels[i + 1], self.t_emb_dim,
                                         down_sample=self.down_sample[i],
-                                        num_heads=self.num_heads))
+                                        num_heads=self.num_heads,
+                                        use_attention=self.attns[i]))
         
         self.mids = nn.ModuleList([])
         for i in range(len(self.mid_channels) - 1):
@@ -54,7 +55,8 @@ class UNet(nn.Module):
         for i in reversed(range(len(self.down_channels) - 1)):
             self.ups.append(UpBlock(self.down_channels[i] * 2, self.down_channels[i - 1] if i != 0 else self.conv_out_channels,
                                     self.t_emb_dim, up_sample=self.down_sample[i],
-                                        num_heads=self.num_heads))
+                                    num_heads=self.num_heads,
+                                    use_attention=self.attns[i]))
         
         self.norm_out = nn.GroupNorm(self.norm_channels, self.conv_out_channels)
         self.conv_out = nn.Conv2d(self.conv_out_channels, im_channels, kernel_size=3, padding=1)

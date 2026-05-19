@@ -3,16 +3,17 @@ import torch.nn as nn
 
 def get_time_embedding(time_steps, dim):
     assert dim % 2 == 0, "Time embedding dimension must be even"
-    factor = 10000 ** (torch.arange(0, dim // 2, dtype=torch.float32, device=time_steps.device) // (dim // 2))
+    factor = 10000 ** (torch.arange(0, dim // 2, dtype=torch.float32, device=time_steps.device) / (dim // 2))
 
     temb = time_steps[:, None].repeat(1, dim//2) / factor
     temb = torch.cat([torch.sin(temb), torch.cos(temb)], dim = -1)
     return temb
 
 class DownBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, temb_dim, down_sample, num_heads):
+    def __init__(self, in_channels, out_channels, temb_dim, down_sample, num_heads, use_attention=False):
         super().__init__()
         self.down_sample = down_sample
+        self.use_attention = use_attention
         self.res_conv_first = nn.Sequential(
             nn.GroupNorm(8, in_channels),
             nn.SiLU(),
@@ -28,8 +29,9 @@ class DownBlock(nn.Module):
             nn.SiLU(),
             nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
         )
-        self.attn_norm = nn.GroupNorm(8, out_channels)
-        self.attn = nn.MultiheadAttention(out_channels, num_heads, batch_first=True)
+        if self.use_attention:
+            self.attn_norm = nn.GroupNorm(8, out_channels)
+            self.attn = nn.MultiheadAttention(out_channels, num_heads, batch_first=True)
         self.res_inp_conv = nn.Conv2d(in_channels, out_channels, kernel_size=1) 
         self.down_sample_conv = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=2, padding=1) if down_sample else nn.Identity()
 
@@ -43,12 +45,13 @@ class DownBlock(nn.Module):
         out = self.res_conv_second(out)
         out = out + self.res_inp_conv(res_inp)
 
-        b, c, h, w = out.shape
-        in_attn = out.reshape(b, c, h*w)
-        in_attn = self.attn_norm(in_attn).permute(0, 2, 1)
-        out_attn, _ = self.attn(in_attn, in_attn, in_attn)
-        out_attn = out_attn.permute(0, 2, 1).reshape(b, c, h, w) 
-        out = out + out_attn
+        if self.use_attention:
+            b, c, h, w = out.shape
+            in_attn = out.reshape(b, c, h*w)
+            in_attn = self.attn_norm(in_attn).permute(0, 2, 1)
+            out_attn, _ = self.attn(in_attn, in_attn, in_attn)
+            out_attn = out_attn.permute(0, 2, 1).reshape(b, c, h, w)
+            out = out + out_attn
 
         out = self.down_sample_conv(out)
         return out
@@ -122,9 +125,10 @@ class MidBlock(nn.Module):
         return out
     
 class UpBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, temb_dim, up_sample, num_heads):
+    def __init__(self, in_channels, out_channels, temb_dim, up_sample, num_heads, use_attention=False):
         super().__init__()
         self.up_sample = up_sample
+        self.use_attention = use_attention
         self.res_conv_first = nn.Sequential(
             nn.GroupNorm(8, in_channels),
             nn.SiLU(),
@@ -142,10 +146,11 @@ class UpBlock(nn.Module):
             nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
         )
 
-        self.attn_norm = nn.GroupNorm(8, out_channels)
-        self.attn = nn.MultiheadAttention(out_channels, num_heads, batch_first=True)
+        if self.use_attention:
+            self.attn_norm = nn.GroupNorm(8, out_channels)
+            self.attn = nn.MultiheadAttention(out_channels, num_heads, batch_first=True)
         self.res_inp_conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
-        self.up_sample_conv = nn.ConvTranspose2d(out_channels, out_channels, kernel_size=4, stride=2, padding=1) if up_sample else nn.Identity()
+        self.up_sample_conv = nn.Upsample(scale_factor=2, mode='nearest') if up_sample else nn.Identity()
         
     def forward(self, x, out_down, temb):
         x = self.up_sample_conv(x)
@@ -159,12 +164,13 @@ class UpBlock(nn.Module):
         out = self.res_conv_second(out)
         out = out + self.res_inp_conv(res_inp)
 
-        b, c, h, w = out.shape
-        in_attn = out.reshape(b, c, h*w)
-        in_attn = self.attn_norm(in_attn).permute(0, 2, 1)
-        out_attn, _ = self.attn(in_attn, in_attn, in_attn)
-        out_attn = out_attn.permute(0, 2, 1).reshape(b, c, h, w)
-        out = out + out_attn
+        if self.use_attention:
+            b, c, h, w = out.shape
+            in_attn = out.reshape(b, c, h*w)
+            in_attn = self.attn_norm(in_attn).permute(0, 2, 1)
+            out_attn, _ = self.attn(in_attn, in_attn, in_attn)
+            out_attn = out_attn.permute(0, 2, 1).reshape(b, c, h, w)
+            out = out + out_attn
 
         return out
     
