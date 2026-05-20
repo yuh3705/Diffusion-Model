@@ -11,12 +11,25 @@ from torch.utils.data import DataLoader
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from dataset.mnist_dataset import MNISTDataset
+from dataset.celebhq_dataset import CelebHQDataset
 from model.unet import UNet
 from scheduler.scheduler import Scheduler
 from tqdm import tqdm
 import argparse
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+def build_dataset(dataset_config):
+    dataset_name = dataset_config.get('name', 'mnist').lower()
+    if dataset_name == 'mnist':
+        return MNISTDataset(split='train', im_path=dataset_config['im_path'])
+    if dataset_name in ['celebhq', 'celeba_hq', 'celeba-hq']:
+        return CelebHQDataset(
+            im_path=dataset_config['im_path'],
+            im_size=dataset_config['im_size'],
+            im_exts=dataset_config.get('im_exts'),
+        )
+    raise ValueError(f"Unsupported dataset: {dataset_config.get('name')}")
 
 def train(args):
     with open(args.config, 'r') as f:
@@ -35,8 +48,14 @@ def train(args):
                                 beta_start=diffusion_config['beta_start'], 
                                 beta_end=diffusion_config['beta_end'])
     
-    mnist = MNISTDataset(split='train', im_path=dataset_config['im_path'])
-    mnist_loader = DataLoader(mnist, batch_size=train_config['batch_size'], shuffle=True)
+    dataset = build_dataset(dataset_config)
+    data_loader = DataLoader(
+        dataset,
+        batch_size=train_config['batch_size'],
+        shuffle=True,
+        num_workers=train_config.get('num_workers', 0),
+        pin_memory=torch.cuda.is_available(),
+    )
     
     model = UNet(
         im_channels=dataset_config['im_channels'],
@@ -58,7 +77,7 @@ def train(args):
 
     for epoch_idx in range(num_epochs):
         losses = []
-        progress_bar = tqdm(mnist_loader, desc=f"Epoch {epoch_idx + 1}/{num_epochs}")
+        progress_bar = tqdm(data_loader, desc=f"Epoch {epoch_idx + 1}/{num_epochs}")
         for im in progress_bar:
             optimizer.zero_grad()
             im = im.float().to(device)

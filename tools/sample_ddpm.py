@@ -16,6 +16,7 @@ from tqdm import tqdm
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def sample(model, scheduler, train_config, dataset_config, diffusion_config):
+    sample_save_steps = train_config.get('sample_save_steps', 1)
     xt = torch.randn((train_config['num_samples'],
                       dataset_config['im_channels'],
                       dataset_config['im_size'],
@@ -23,6 +24,9 @@ def sample(model, scheduler, train_config, dataset_config, diffusion_config):
     for i in tqdm(reversed(range(diffusion_config['num_timesteps']))):
         noise_pred = model(xt, torch.as_tensor(i).unsqueeze(0).to(device))
         xt, x0_pred = scheduler.sample_prev_step(xt, noise_pred, torch.as_tensor(i).to(device))
+
+        if i != 0 and i % sample_save_steps != 0:
+            continue
 
         ims = torch.clamp(xt, -1, 1).detach().cpu()
         ims = (ims + 1) / 2

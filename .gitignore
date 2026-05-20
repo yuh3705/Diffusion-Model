@@ -13,6 +13,7 @@ data/
 
 # Training outputs and checkpoints
 mnist/
+celebhq/
 *.pth
 *.pt
 *.ckpt
