@@ -31,8 +31,8 @@ train_params:
   batch_size: 8
   num_workers: 2
   num_epochs: 100
-  num_samples: 16
+  num_samples: 16   
   num_grid_rows: 4
-  sample_save_steps: 100
+  sample_save_steps: 1
   lr: 0.00002
   ckpt_name: 'ddpm_celebhq_64.pth'
